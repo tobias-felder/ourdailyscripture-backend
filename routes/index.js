@@ -9,6 +9,7 @@ const discountController = require('../controllers/discountController');
 const productController = require('../controllers/productController');
 const themeController = require('../controllers/themeController');
 const podcastRoutes = require('./podcast');
+const greetingCardRoutes = require('./greetingCard');
 
 // ============================================
 // PUBLIC ROUTES (No authentication required)
@@ -68,6 +69,9 @@ router.post('/theme/custom', authMiddleware, themeController.applyCustomTheme);
 
 // Podcast routes (VIP system)
 router.use('/podcast', podcastRoutes);
+
+// Greeting card routes (public - AI image generation)
+router.use('/greeting-card', greetingCardRoutes);
 
 module.exports = router;
 
