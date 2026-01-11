@@ -87,7 +87,8 @@ router.get('/api/import-pcm-bible', async (req, res) => {
 });
 
 // Old verse-based import (deprecated)
-router.get('/api/import-pcm-bible-old', async (req, res) => {try {
+router.get('/api/import-pcm-bible-old', async (req, res) => {
+  try {
     const { Pool } = require('pg');
     const fs = require('fs');
     const path = require('path');
