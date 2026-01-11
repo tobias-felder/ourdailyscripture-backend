@@ -11,7 +11,7 @@ const openai = new OpenAI({
  */
 exports.generatePrayers = async (req, res) => {
   try {
-    const { category, subcategory, verses } = req.body;
+    const { category, subcategory, verses, length = 'medium' } = req.body;
 
     if (!category || !verses || verses.length === 0) {
       return res.status(400).json({
@@ -24,6 +24,16 @@ exports.generatePrayers = async (req, res) => {
     const versesContext = verses.map(v => 
       `${v.reference}: "${v.text}"`
     ).join('\n\n');
+
+    // Define prayer length specifications
+    const lengthSpecs = {
+      short: '1-2 sentences',
+      medium: '3-5 sentences',
+      long: '7-10 sentences',
+      extended: 'a full paragraph (10-15 sentences)'
+    };
+    
+    const prayerLength = lengthSpecs[length] || lengthSpecs.medium;
 
     // Create a focused prompt to minimize hallucination
     const prompt = `You are a Christian prayer writer helping believers pray Scripture-based prayers.
@@ -39,7 +49,7 @@ TASK: Generate 5 distinct prayers based ONLY on these specific verses and their 
 2. Use biblical language and themes from these verses
 3. Be heartfelt and personal
 4. Address the specific topic: ${category}${subcategory ? ` - ${subcategory}` : ''}
-5. Be 3-5 sentences long
+5. Be ${prayerLength} long
 
 PRAYER STYLES TO CREATE:
 1. Prayer for Peace and Comfort
@@ -123,6 +133,7 @@ IMPORTANT: Base every prayer directly on the verses provided. Do not add theolog
       success: true,
       category,
       subcategory,
+      length,
       prayers,
       verses_used: verses.map(v => v.reference)
     });
