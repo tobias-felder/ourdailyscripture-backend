@@ -98,11 +98,45 @@ router.get('/import-pcm-bible', async (req, res) => {
     booksResult.rows.forEach(row => { bookIds[row.code] = row.id; });
     
     const pcmDir = path.join(__dirname, '../pcm_bible');
+    console.log('Looking for PCM Bible at:', pcmDir);
+    console.log('Directory exists:', fs.existsSync(pcmDir));
+    
     if (!fs.existsSync(pcmDir)) {
-      return res.status(400).json({ error: 'PCM Bible files not found on server. Contact admin.' });
+      // Try alternative paths
+      const altPaths = [
+        path.join(__dirname, '../../pcm_bible'),
+        path.join(process.cwd(), 'pcm_bible'),
+        '/opt/render/project/src/pcm_bible'
+      ];
+      
+      let foundPath = null;
+      for (const altPath of altPaths) {
+        console.log('Trying alternative path:', altPath, 'exists:', fs.existsSync(altPath));
+        if (fs.existsSync(altPath)) {
+          foundPath = altPath;
+          break;
+        }
+      }
+      
+      if (!foundPath) {
+        return res.status(400).json({ 
+          error: 'PCM Bible files not found on server',
+          tried_paths: [pcmDir, ...altPaths],
+          cwd: process.cwd(),
+          __dirname: __dirname
+        });
+      }
+      
+      // Use the found path
+      pcmDir = foundPath;
     }
     
-    const files = fs.readdirSync(pcmDir).filter(f => f.endsWith('_read.txt') && f.includes('_'));
+    const allFiles = fs.readdirSync(pcmDir);
+    console.log('Total files in directory:', allFiles.length);
+    console.log('Sample files:', allFiles.slice(0, 5));
+    
+    const files = allFiles.filter(f => f.endsWith('_read.txt') && f.includes('_'));
+    console.log('Filtered PCM files:', files.length);
     let totalVerses = 0;
     
     for (const file of files) {
