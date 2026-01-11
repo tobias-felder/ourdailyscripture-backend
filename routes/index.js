@@ -97,7 +97,7 @@ router.get('/import-pcm-bible', async (req, res) => {
     const bookIds = {};
     booksResult.rows.forEach(row => { bookIds[row.code] = row.id; });
     
-    const pcmDir = path.join(__dirname, '../../pcm_bible');
+    const pcmDir = path.join(__dirname, '../pcm_bible');
     if (!fs.existsSync(pcmDir)) {
       return res.status(400).json({ error: 'PCM Bible files not found on server. Contact admin.' });
     }
