@@ -35,7 +35,150 @@ router.get('/discounts/validate/:code', discountController.validateDiscount);
 // Theme routes (public - for frontend)
 router.get('/theme/current', themeController.getCurrentTheme);
 
-// Migration endpoint (one-time setup)
+// Bible migration endpoints (one-time setup)
+router.get('/run-bible-migration', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const fs = require('fs');
+    const path = require('path');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    
+    const sqlPath = path.join(__dirname, '..', 'migrations', 'add-bible-tables.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    await pool.query(sql);
+    
+    // Verify tables
+    const result = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      AND table_name IN ('bible_versions', 'bible_books', 'bible_verses')
+      ORDER BY table_name
+    `);
+    
+    const versionCheck = await pool.query("SELECT * FROM bible_versions WHERE code = 'PCM'");
+    const booksCount = await pool.query('SELECT COUNT(*) as count FROM bible_books');
+    
+    res.json({
+      success: true,
+      message: 'Bible tables migration completed successfully!',
+      tables: result.rows.map(r => r.table_name),
+      pcm_version: versionCheck.rows[0] || null,
+      books_count: parseInt(booksCount.rows[0].count)
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Migration failed', details: error.message });
+  }
+});
+
+router.get('/import-pcm-bible', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const fs = require('fs');
+    const path = require('path');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    
+    const versionResult = await pool.query("SELECT id FROM bible_versions WHERE code = 'PCM'");
+    if (versionResult.rows.length === 0) {
+      return res.status(400).json({ error: 'PCM version not found. Run /api/run-bible-migration first.' });
+    }
+    const versionId = versionResult.rows[0].id;
+    
+    const booksResult = await pool.query('SELECT id, code FROM bible_books ORDER BY book_number');
+    const bookIds = {};
+    booksResult.rows.forEach(row => { bookIds[row.code] = row.id; });
+    
+    const pcmDir = path.join(__dirname, '../../pcm_bible');
+    if (!fs.existsSync(pcmDir)) {
+      return res.status(400).json({ error: 'PCM Bible files not found on server. Contact admin.' });
+    }
+    
+    const files = fs.readdirSync(pcmDir).filter(f => f.endsWith('_read.txt') && f.includes('_'));
+    let totalVerses = 0;
+    
+    for (const file of files) {
+      const parts = file.split('_');
+      if (parts.length < 4) continue;
+      
+      const bookCode = parts[2];
+      const chapterNum = parseInt(parts[3]);
+      
+      if (!bookIds[bookCode]) continue;
+      
+      const bookId = bookIds[bookCode];
+      const filePath = path.join(pcmDir, file);
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split('\n').filter(l => l.trim());
+      
+      let verseNum = 0;
+      let verseText = '';
+      
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.endsWith('.') && trimmed.length < 20) continue;
+        
+        const match = trimmed.match(/^(\d+)\.\s*(.+)$/);
+        
+        if (match) {
+          if (verseNum > 0 && verseText) {
+            await pool.query(
+              `INSERT INTO bible_verses (version_id, book_id, chapter, verse, text)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (version_id, book_id, chapter, verse) DO UPDATE
+               SET text = EXCLUDED.text`,
+              [versionId, bookId, chapterNum, verseNum, verseText.trim()]
+            );
+            totalVerses++;
+          }
+          verseNum = parseInt(match[1]);
+          verseText = match[2];
+        } else if (verseNum > 0) {
+          verseText += ' ' + trimmed;
+        }
+      }
+      
+      if (verseNum > 0 && verseText) {
+        await pool.query(
+          `INSERT INTO bible_verses (version_id, book_id, chapter, verse, text)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT (version_id, book_id, chapter, verse) DO UPDATE
+           SET text = EXCLUDED.text`,
+          [versionId, bookId, chapterNum, verseNum, verseText.trim()]
+        );
+        totalVerses++;
+      }
+    }
+    
+    const sampleResult = await pool.query(
+      `SELECT b.name, v.chapter, v.verse, v.text
+       FROM bible_verses v
+       JOIN bible_books b ON v.book_id = b.id
+       WHERE v.version_id = $1
+       ORDER BY b.book_number, v.chapter, v.verse
+       LIMIT 3`,
+      [versionId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Nigerian Pidgin Bible imported successfully!',
+      verses_imported: totalVerses,
+      sample_verses: sampleResult.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Import failed', details: error.message });
+  }
+});
+
+// Prayer migration endpoint (one-time setup)
 router.get('/run-prayer-migration', async (req, res) => {
   try {
     const { Pool } = require('pg');
