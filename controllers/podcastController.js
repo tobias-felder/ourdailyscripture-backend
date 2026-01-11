@@ -599,6 +599,11 @@ ${segmentContext ? `Here's the podcast discussion so far:\n${segmentContext}` : 
       }
     ];
 
+    // Initialize OpenAI
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY
+    });
+
     // Add conversation history if provided
     if (conversation_history && Array.isArray(conversation_history)) {
       conversation_history.forEach(msg => {
