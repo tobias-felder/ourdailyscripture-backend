@@ -35,6 +35,45 @@ router.get('/discounts/validate/:code', discountController.validateDiscount);
 // Theme routes (public - for frontend)
 router.get('/theme/current', themeController.getCurrentTheme);
 
+// Migration endpoint (one-time setup)
+router.get('/run-prayer-migration', async (req, res) => {
+  try {
+    const { Pool } = require('pg');
+    const fs = require('fs');
+    const path = require('path');
+    
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    });
+    
+    // Read and execute migration SQL
+    const sqlPath = path.join(__dirname, '..', 'migrations', 'add-prayers-table.sql');
+    const sql = fs.readFileSync(sqlPath, 'utf8');
+    await pool.query(sql);
+    
+    // Verify table was created
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'prayers'
+      ORDER BY ordinal_position
+    `);
+    
+    res.json({
+      success: true,
+      message: 'Prayer table migration completed successfully!',
+      table_structure: result.rows
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Migration failed',
+      details: error.message
+    });
+  }
+});
+
 // ============================================
 // PROTECTED ROUTES (Authentication required)
 // ============================================
