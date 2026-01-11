@@ -546,3 +546,101 @@ Provide thoughtful, concise responses that continue the discussion naturally. Ke
     res.status(500).json({ error: 'Server error generating AI response' });
   }
 };
+
+
+// Generate AI response with Text-to-Speech
+exports.generateAIResponseWithVoice = async (req, res) => {
+  try {
+    const { article_id, user_question, conversation_history, voice } = req.body;
+
+    if (!article_id || !user_question) {
+      return res.status(400).json({ error: 'Article ID and user question are required' });
+    }
+
+    // Get article and segments for context
+    const articleResult = await pool.query(
+      'SELECT * FROM podcast_articles WHERE id = $1',
+      [article_id]
+    );
+
+    if (articleResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+
+    const segmentsResult = await pool.query(
+      'SELECT * FROM podcast_segments WHERE article_id = $1 ORDER BY segment_order ASC',
+      [article_id]
+    );
+
+    const article = articleResult.rows[0];
+    const segments = segmentsResult.rows;
+
+    // Build context from segments
+    let segmentContext = '';
+    if (segments.length > 0) {
+      segmentContext = segments.map(s => 
+        `Host ${s.host_number}: ${s.content}`
+      ).join('\n\n');
+    }
+
+    // Build conversation messages
+    const messages = [
+      {
+        role: 'system',
+        content: `You are a knowledgeable and friendly Bible study podcast host discussing the article "${article.title}". 
+Your role is to provide thoughtful, faith-based insights and answer questions about the topic.
+Keep responses conversational and concise (2-3 sentences max) as they will be spoken aloud.
+
+${segmentContext ? `Here's the podcast discussion so far:\n${segmentContext}` : ''}`
+      },
+      {
+        role: 'user',
+        content: user_question
+      }
+    ];
+
+    // Add conversation history if provided
+    if (conversation_history && Array.isArray(conversation_history)) {
+      conversation_history.forEach(msg => {
+        messages.splice(messages.length - 1, 0, {
+          role: msg.role,
+          content: msg.content
+        });
+      });
+    }
+
+    // Generate text response
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: messages,
+      max_tokens: 150,
+      temperature: 0.7
+    });
+
+    const aiResponse = completion.choices[0].message.content;
+
+    // Generate speech from text
+    const selectedVoice = voice || 'alloy'; // Default to 'alloy' voice
+    const mp3 = await openai.audio.speech.create({
+      model: 'tts-1',
+      voice: selectedVoice,
+      input: aiResponse,
+      speed: 1.0
+    });
+
+    // Convert response to buffer
+    const buffer = Buffer.from(await mp3.arrayBuffer());
+
+    // Set response headers for audio
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': buffer.length,
+      'X-AI-Response-Text': Buffer.from(aiResponse).toString('base64') // Include text in header
+    });
+
+    res.send(buffer);
+  } catch (error) {
+    console.error('Generate AI response with voice error:', error);
+    res.status(500).json({ error: 'Server error generating AI response with voice' });
+  }
+};

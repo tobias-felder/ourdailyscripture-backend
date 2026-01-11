@@ -17,6 +17,9 @@ router.get('/articles/:id', podcastController.getArticle);
 // Generate AI response for voice interaction
 router.post('/ai/response', podcastController.generateAIResponse);
 
+// Generate AI response with Text-to-Speech
+router.post('/ai/response-voice', podcastController.generateAIResponseWithVoice);
+
 // PROTECTED ROUTES
 
 // Category management
