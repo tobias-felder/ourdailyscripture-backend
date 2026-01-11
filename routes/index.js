@@ -10,6 +10,7 @@ const productController = require('../controllers/productController');
 const themeController = require('../controllers/themeController');
 const podcastRoutes = require('./podcast');
 const greetingCardRoutes = require('./greetingCard');
+const prayerRoutes = require('./prayer');
 
 // ============================================
 // PUBLIC ROUTES (No authentication required)
@@ -72,6 +73,9 @@ router.use('/podcast', podcastRoutes);
 
 // Greeting card routes (public - AI image generation)
 router.use('/greeting-card', greetingCardRoutes);
+
+// Prayer routes (public - AI prayer generation)
+router.use('/prayers', prayerRoutes);
 
 module.exports = router;
 
