@@ -75,7 +75,7 @@ router.get('/run-bible-migration', async (req, res) => {
     res.status(500).json({ success: false, error: 'Migration failed', details: error.message });
   }
 });
-router.get('/api/import-pcm-bible', async (req, res) => {
+router.get('/import-pcm-bible', async (req, res) => {
   try {
     const { importPCMChapters } = require('../import-pcm-chapters');
     const result = await importPCMChapters();
@@ -87,7 +87,7 @@ router.get('/api/import-pcm-bible', async (req, res) => {
 });
 
 // Old verse-based import (deprecated)
-router.get('/api/import-pcm-bible-old', async (req, res) => {
+router.get('/import-pcm-bible-old', async (req, res) => {
   try {
     const { Pool } = require('pg');
     const fs = require('fs');
